@@ -1,0 +1,53 @@
+# UOSoftware/SphereServer-56TX-builds reposunun .github/workflows/build.yml'i. Asıl yeri orası; bu kopya kaynak
+# reposunda değişiklikleriyle birlikte tutulur, değişince builds reposuna elle kopyalanır.
+#
+# Kaynak reposunun (private) master'ını derler ve rev<N> release'i olarak yayınlar (utilities/release.ps1). Kaynak
+# reposunun trigger-build workflow'u master'a her push'ta başlatır; Actions sekmesinden elle de başlatılabilir. Public
+# repoda GitHub'ın Windows makineleri ücretsiz ve süresiz; windows-2025 Haziran 2026'dan beri VS 2026 ile geliyor.
+# BUILD_TOKEN: fine-grained token; iki repoda Contents: Read ve Actions: Read and write. Sadece workflow_dispatch:
+# fork'tan gelen pull request'ler bu workflow'u ve secret'ı göremez.
+name: build
+
+on:
+  workflow_dispatch:
+
+# Aynı anda tek derleme: süren derleme biter, sırada bekleyen daha yeni bir istek gelince iptal olur. Her derleme
+# master'ın o anki hâlini alır; aynı rev zaten yayınlanmışsa release.ps1 bir şey yapmadan biter.
+concurrency:
+  group: build
+  cancel-in-progress: false
+
+permissions:
+  contents: write   # release
+
+jobs:
+  build:
+    runs-on: windows-2025
+    timeout-minutes: 120
+    steps:
+      - name: Kaynak kodu
+        uses: actions/checkout@v5
+        with:
+          repository: UOSoftware/SphereServer-56TX
+          ref: master
+          token: ${{ secrets.BUILD_TOKEN }}
+          fetch-depth: 0              # rev<N> = git rev-list --count HEAD: bütün geçmiş gerekir
+          persist-credentials: false
+
+      - name: Derleme ve yayın
+        id: release
+        shell: powershell
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: .\utilities\release.ps1
+
+      # Pdb'ler release'e girmez; testçinin çökme dökümünü çözmek için burada 90 gün kalır. Aynı commit'i yeniden
+      # derlemek eşleşen pdb vermez. Sürüm zaten yayınlanmışsa dosya yok, adım bir şey yapmaz.
+      - name: Pdb'ler
+        if: steps.release.outputs.tag != ''
+        uses: actions/upload-artifact@v4
+        with:
+          name: pdb-${{ steps.release.outputs.tag }}
+          path: build/releases/${{ steps.release.outputs.tag }}/*.pdb
+          retention-days: 90
+          if-no-files-found: ignore
