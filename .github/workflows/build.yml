@@ -35,6 +35,14 @@ jobs:
           fetch-depth: 0              # rev<N> = git rev-list --count HEAD: bütün geçmiş gerekir
           persist-credentials: false
 
+      # Ortak Sentry projesinin DSN'i (SENTRY_DSN secret'ı): exe'lere gömülür (cmake/SentryDsn.cmake, vs/configure.ps1).
+      # Secret yoksa dosya yazılmaz; release.ps1 uyarır, o sürüm ortak projeye göndermez. Log'a yazılmaz.
+      - name: Sentry DSN
+        shell: powershell
+        env:
+          SENTRY_DSN: ${{ secrets.SENTRY_DSN }}
+        run: if ($env:SENTRY_DSN) { [IO.File]::WriteAllText('sentry-dsn.txt', $env:SENTRY_DSN.Trim()) }
+
       - name: Derleme ve yayın
         id: release
         shell: powershell
