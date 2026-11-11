@@ -43,20 +43,19 @@ jobs:
           SENTRY_DSN: ${{ secrets.SENTRY_DSN }}
         run: if ($env:SENTRY_DSN) { [IO.File]::WriteAllText('sentry-dsn.txt', $env:SENTRY_DSN.Trim()) }
 
+      # UOSoft lisansının açık anahtarı (LICENSE_PUBLIC_KEY secret'ı; sitede php artisan sphere:license-keygen
+      # --show-public): exe'lere gömülür (cmake/LicenseKeys.cmake, vs/configure.ps1), exe'ler sadece lisansla açılır.
+      # Secret yoksa release.ps1 yayınlamaz. Anahtar değiştirilirken secret'a eskisi ve yenisi ayrı satırlarda yazılır.
+      - name: Lisans anahtarı
+        shell: powershell
+        env:
+          LICENSE_PUBLIC_KEY: ${{ secrets.LICENSE_PUBLIC_KEY }}
+        run: if ($env:LICENSE_PUBLIC_KEY) { [IO.File]::WriteAllText('license-public-key.txt', $env:LICENSE_PUBLIC_KEY.Trim()) }
+
+      # Pdb'ler hiçbir yere yüklenmez (11-11-2026'dan beri artifact da değil): bu repo public, pdb lisans denetiminin
+      # yerini gösterir.
       - name: Derleme ve yayın
-        id: release
         shell: powershell
         env:
           GH_TOKEN: ${{ github.token }}
         run: .\utilities\release.ps1
-
-      # Pdb'ler release'e girmez; testçinin çökme dökümünü çözmek için burada 90 gün kalır. Aynı commit'i yeniden
-      # derlemek eşleşen pdb vermez. Sürüm zaten yayınlanmışsa dosya yok, adım bir şey yapmaz.
-      - name: Pdb'ler
-        if: steps.release.outputs.tag != ''
-        uses: actions/upload-artifact@v4
-        with:
-          name: pdb-${{ steps.release.outputs.tag }}
-          path: build/releases/${{ steps.release.outputs.tag }}/*.pdb
-          retention-days: 90
-          if-no-files-found: ignore
